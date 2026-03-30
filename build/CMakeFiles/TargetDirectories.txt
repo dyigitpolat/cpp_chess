@@ -1,0 +1,3 @@
+/Users/dogukanyigitpolat/repos/cpp_chess/build/CMakeFiles/chess_ga.dir
+/Users/dogukanyigitpolat/repos/cpp_chess/build/CMakeFiles/edit_cache.dir
+/Users/dogukanyigitpolat/repos/cpp_chess/build/CMakeFiles/rebuild_cache.dir
