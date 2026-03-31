@@ -1,6 +1,10 @@
 #include "board.hpp"
 
+#include <bit>
 #include <cstring>
+#include <vector>
+
+// Performance: this engine assumes Black has only a king (mate-in-one GA). See is_attacked / in_check.
 
 namespace chess {
 
@@ -104,21 +108,104 @@ void attacks_from(const Board& b, int sq, std::vector<int>& out) {
   attacks_from_impl(b, sq_r(sq), sq_c(sq), out);
 }
 
-bool is_attacked(const Board& b, int target_sq, bool by_white) {
-  std::vector<int> atks;
-  atks.reserve(32);
-  for (int r = 0; r < 8; ++r)
-    for (int c = 0; c < 8; ++c) {
-      int sq = rc_to_sq(r, c);
-      uint8_t p = b[sq];
-      if (p == EMPTY) continue;
-      bool is_w = is_white(p);
-      if (is_w != by_white) continue;
-      attacks_from_impl(b, r, c, atks);
-      for (int a : atks)
-        if (a == target_sq) return true;
+// Target-only check for is_attacked(by_white): avoids building a vector per white piece.
+static bool white_piece_attacks_sq(const Board& b, int from_sq, int target_sq) {
+  const int r = sq_r(from_sq);
+  const int c = sq_c(from_sq);
+  const uint8_t p = b[static_cast<size_t>(from_sq)];
+  if (p == EMPTY) return false;
+
+  const char t = piece_type_upper(p);
+  if (t == 'N') {
+    static const int dr[] = {-2, -2, -1, -1, 1, 1, 2, 2};
+    static const int dc[] = {-1, 1, -2, 2, -2, 2, -1, 1};
+    for (int i = 0; i < 8; ++i) {
+      const int nr = r + dr[i], nc = c + dc[i];
+      if (in_bounds(nr, nc) && rc_to_sq(nr, nc) == target_sq) return true;
     }
+    return false;
+  }
+  if (t == 'K') {
+    for (int dr = -1; dr <= 1; ++dr)
+      for (int dc = -1; dc <= 1; ++dc) {
+        if (dr == 0 && dc == 0) continue;
+        const int nr = r + dr, nc = c + dc;
+        if (in_bounds(nr, nc) && rc_to_sq(nr, nc) == target_sq) return true;
+      }
+    return false;
+  }
+
+  static const int dirs_b[4][2] = {{-1, -1}, {-1, 1}, {1, -1}, {1, 1}};
+  static const int dirs_r[4][2] = {{-1, 0}, {1, 0}, {0, -1}, {0, 1}};
+  static const int dirs_q[8][2] = {{-1, -1}, {-1, 0}, {-1, 1}, {0, -1}, {0, 1}, {1, -1}, {1, 0}, {1, 1}};
+
+  const int (*dirs)[2] = nullptr;
+  int nd = 0;
+  if (t == 'B') {
+    dirs = dirs_b;
+    nd = 4;
+  } else if (t == 'R') {
+    dirs = dirs_r;
+    nd = 4;
+  } else if (t == 'Q') {
+    dirs = dirs_q;
+    nd = 8;
+  } else {
+    return false;
+  }
+
+  for (int i = 0; i < nd; ++i) {
+    const int dr = dirs[i][0], dc = dirs[i][1];
+    int nr = r + dr, nc = c + dc;
+    while (in_bounds(nr, nc)) {
+      const int sq = rc_to_sq(nr, nc);
+      if (sq == target_sq) return true;
+      if (b[static_cast<size_t>(sq)] != EMPTY) break;
+      nr += dr;
+      nc += dc;
+    }
+  }
   return false;
+}
+
+/// True if the two squares are different and king-adjacent (Black has only K in this puzzle).
+static bool kings_adjacent(int sq_a, int sq_b) {
+  if (sq_a == sq_b) return false;
+  int dr = sq_r(sq_a) - sq_r(sq_b);
+  if (dr < 0) dr = -dr;
+  int dc = sq_c(sq_a) - sq_c(sq_b);
+  if (dc < 0) dc = -dc;
+  return dr <= 1 && dc <= 1;
+}
+
+uint64_t white_piece_occ_mask(const Board& b) {
+  uint64_t m = 0;
+  for (int i = 0; i < SQ_COUNT; ++i) {
+    const uint8_t p = b[static_cast<size_t>(i)];
+    if (p != EMPTY && is_white(p)) m |= (1ULL << static_cast<unsigned>(i));
+  }
+  return m;
+}
+
+// True if some white piece attacks target_sq; only iterates set bits in white_mask.
+static bool white_attacks_target_sq(const Board& b, int target_sq, uint64_t white_mask) {
+  uint64_t wm = white_mask;
+  while (wm != 0) {
+    const int sq = static_cast<int>(std::countr_zero(wm));
+    wm &= wm - 1;
+    if (white_piece_attacks_sq(b, sq, target_sq)) return true;
+  }
+  return false;
+}
+
+bool is_attacked(const Board& b, int target_sq, bool by_white) {
+  if (!by_white) {
+    // Only the black king can attack (no other Black material in this program).
+    const int bksq = find_king_sq(b, false);
+    if (bksq < 0) return false;
+    return kings_adjacent(bksq, target_sq);
+  }
+  return white_attacks_target_sq(b, target_sq, white_piece_occ_mask(b));
 }
 
 int find_king_sq(const Board& b, bool white_king) {
@@ -129,29 +216,62 @@ int find_king_sq(const Board& b, bool white_king) {
 }
 
 bool in_check(const Board& b, bool white_side) {
-  int ksq = find_king_sq(b, white_side);
+  const int ksq = find_king_sq(b, white_side);
   if (ksq < 0) return false;
-  return is_attacked(b, ksq, !white_side);
+  if (white_side) {
+    // White king in check: only Black's king can give check here.
+    const int bksq = find_king_sq(b, false);
+    if (bksq < 0) return false;
+    return kings_adjacent(bksq, ksq);
+  }
+  return is_attacked(b, ksq, true);
+}
+
+bool black_king_in_check(const Board& b, int black_king_sq, uint64_t white_mask) {
+  if (black_king_sq < 0) return false;
+  return white_attacks_target_sq(b, black_king_sq, white_mask);
+}
+
+bool black_king_in_check(const Board& b, int black_king_sq) {
+  if (black_king_sq < 0) return false;
+  return black_king_in_check(b, black_king_sq, white_piece_occ_mask(b));
+}
+
+bool white_king_in_check_vs_lone_black(const Board& b, int white_king_sq, int black_king_sq) {
+  (void)b;
+  if (white_king_sq < 0 || black_king_sq < 0) return false;
+  return kings_adjacent(black_king_sq, white_king_sq);
 }
 
 void pseudo_moves(const Board& b, bool white_side, std::vector<Move>& moves) {
   moves.clear();
-  std::vector<int> atks;
-  atks.reserve(32);
-  for (int r = 0; r < 8; ++r)
-    for (int c = 0; c < 8; ++c) {
-      int sq = rc_to_sq(r, c);
-      uint8_t p = b[sq];
-      if (p == EMPTY) continue;
-      bool is_w = is_white(p);
-      if (is_w != white_side) continue;
-
-      attacks_from_impl(b, r, c, atks);
-      for (int dest : atks) {
-        uint8_t dp = b[dest];
-        if (dp == EMPTY || is_white(dp) != is_w) moves.push_back(Move{sq, dest});
-      }
+  thread_local std::vector<int> atks;
+  atks.reserve(64);
+  if (!white_side) {
+    // Black has only the king in this engine; avoid scanning all 64 squares.
+    const int sq = find_king_sq(b, false);
+    if (sq < 0) return;
+    const uint8_t p = b[static_cast<size_t>(sq)];
+    if (p != B_K) return;
+    const bool is_w = false;
+    attacks_from_impl(b, sq_r(sq), sq_c(sq), atks);
+    for (int dest : atks) {
+      const uint8_t dp = b[static_cast<size_t>(dest)];
+      if (dp == EMPTY || is_white(dp) != is_w) moves.push_back(Move{sq, dest});
     }
+    return;
+  }
+  uint64_t wm = white_piece_occ_mask(b);
+  while (wm != 0) {
+    const int sq = static_cast<int>(std::countr_zero(wm));
+    wm &= wm - 1;
+    const bool is_w = true;
+    attacks_from_impl(b, sq_r(sq), sq_c(sq), atks);
+    for (int dest : atks) {
+      const uint8_t dp = b[static_cast<size_t>(dest)];
+      if (dp == EMPTY || is_white(dp) != is_w) moves.push_back(Move{sq, dest});
+    }
+  }
 }
 
 void apply_move(const Board& b, Move m, Board& out) {
@@ -172,25 +292,28 @@ bool has_any_legal_move(const Board& b, bool white_side) {
   return false;
 }
 
-bool black_king_has_legal_move(const Board& b) {
-  int ksq = find_king_sq(b, false);
-  if (ksq < 0) return false;
-  int kr = sq_r(ksq);
-  int kc = sq_c(ksq);
+bool black_king_has_legal_move(const Board& b, int black_king_sq) {
+  if (black_king_sq < 0) return false;
+  const int kr = sq_r(black_king_sq);
+  const int kc = sq_c(black_king_sq);
   Board nb;
   for (int dr = -1; dr <= 1; ++dr)
     for (int dc = -1; dc <= 1; ++dc) {
       if (dr == 0 && dc == 0) continue;
-      int nr = kr + dr, nc = kc + dc;
+      const int nr = kr + dr, nc = kc + dc;
       if (!in_bounds(nr, nc)) continue;
-      int to = rc_to_sq(nr, nc);
-      uint8_t target = b[to];
+      const int to = rc_to_sq(nr, nc);
+      const uint8_t target = b[static_cast<size_t>(to)];
       if (target != EMPTY && is_black(target)) continue;
-      Move m{ksq, to};
+      const Move m{black_king_sq, to};
       apply_move(b, m, nb);
       if (!in_check(nb, false)) return true;
     }
   return false;
+}
+
+bool black_king_has_legal_move(const Board& b) {
+  return black_king_has_legal_move(b, find_king_sq(b, false));
 }
 
 bool position_legal_quiet(const Board& b) {

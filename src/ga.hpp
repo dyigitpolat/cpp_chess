@@ -35,6 +35,8 @@ struct GaConfig {
   double mutation_rate = 0.65;
   CrossoverMode crossover_mode = CrossoverMode::VectorRepair;
   bool report_each_generation = true;
+  /// If true, print wall-clock seconds for each full generation (stderr). Suppress with --no-generation-time.
+  bool report_generation_time = true;
 
   /// If global best does not improve for this many generations, inject immigrants / hyper-mutation. 0 = off.
   int stagnation_generations = 40;

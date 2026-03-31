@@ -8,6 +8,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <chrono>
 #include <fstream>
 #include <numeric>
 #include <string>
@@ -330,6 +331,7 @@ GaResult run_genetic_algorithm(const GaConfig& cfg, const Board& seed_board) {
   }
 
   for (int gen = 0; gen < c.generations; ++gen) {
+    const auto gen_t0 = std::chrono::steady_clock::now();
     const int best_before_gen = result.best_fitness;
 
     recompute_fitness_parallel(P, c.population, pops, fits);
@@ -368,11 +370,6 @@ GaResult run_genetic_algorithm(const GaConfig& cfg, const Board& seed_board) {
           pb = i;
       }
       gen_pop_best = std::max(gen_pop_best, fits[static_cast<size_t>(pid)][static_cast<size_t>(pb)]);
-    }
-
-    if (c.report_each_generation) {
-      std::fprintf(stderr, "generation %d: best=%d (overall so far: %d)\n", gen, gen_pop_best,
-                   result.best_fitness);
     }
 
     // Diversity injection (periodic random immigrants among non-elite), per pool
@@ -623,6 +620,15 @@ GaResult run_genetic_algorithm(const GaConfig& cfg, const Board& seed_board) {
       }
 
       pop.swap(next);
+    }
+
+    const double gen_sec =
+        std::chrono::duration<double>(std::chrono::steady_clock::now() - gen_t0).count();
+    if (c.report_each_generation) {
+      std::fprintf(stderr, "generation %d: best=%d (overall so far: %d)  %.2f s\n", gen, gen_pop_best,
+                   result.best_fitness, gen_sec);
+    } else if (c.report_generation_time) {
+      std::fprintf(stderr, "generation %d: %.2f s\n", gen, gen_sec);
     }
   }
 

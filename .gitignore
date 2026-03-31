@@ -1,2 +1,4 @@
 /benchamrks
 /build
+/benchmarks/perf/
+/build-profile/

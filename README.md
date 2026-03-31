@@ -15,7 +15,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-Binaries: `build/chess_ga` (search + HTML), `build/bench_ga` (CSV grid benchmark).
+Binaries: `build/chess_ga` (search + HTML), `build/bench_ga` (CSV grid benchmark), `build/bench_mate` (mate kernel microbench).
 
 **Scripts:** `./build.sh` configures and builds. `./run.sh` runs `chess_ga`. `./build_and_run.sh` builds then runs `chess_ga`. `./scripts/bench_ga.sh` runs `bench_ga` (after `./build.sh`).
 
@@ -74,6 +74,31 @@ Local search is **off** by default in `bench_ga` for speed. Use **`--match-chess
 ```
 
 Older sample rows (fewer columns) are in [`benchmarks/sample_grid.csv`](benchmarks/sample_grid.csv). Newer samples are under [`benchmarks/runs/`](benchmarks/runs/).
+
+## Profiling (Linux `perf`)
+
+Use a **Profile** build for readable stacks and line info (`-g`, frame pointers, **no LTO**):
+
+```bash
+cmake -B build-profile -DCMAKE_BUILD_TYPE=Profile
+cmake --build build-profile --parallel
+```
+
+- **`build-profile/chess_ga`** — GA workload; **`build-profile/bench_ga`** — CSV grid driver; **`build-profile/bench_mate`** — tight loop over `count_mate_in_one` on the baseline board (no OpenMP noise).
+
+Kernel and workflow details: [`docs/PROFILING.md`](docs/PROFILING.md).
+
+**Quick smoke:** `CHESS_GA=build-profile/chess_ga ./scripts/profile.sh` (writes `/tmp/cpp_chess_perf.data` unless `PERF_OUT` is set).
+
+**Full suite** (`perf record` with dwarf stacks, `perf report` snippets, `perf stat`, `OMP_NUM_THREADS=1` stat, `bench_ga` stat, optional flame graph if `stackcollapse-perf.pl` / `flamegraph.pl` are on `PATH`):
+
+```bash
+CHESS_GA="$PWD/build-profile/chess_ga" BENCH_GA="$PWD/build-profile/bench_ga" ./scripts/profile_all.sh
+```
+
+Artifacts go under **`benchmarks/perf/`** (gitignored). Set `GENS`, `POP`, `SEED`, `OUT`, `BENCH_GA_ARGS` to tune the fixed workload.
+
+**Inspecting your binary vs OpenMP:** compare `*_perf_stat.txt` with default threads vs `*_perf_stat_omp1.txt`. In `perf report`, use **`--obj-only`** / symbol filters; frame pointers + dwarf help samples appear under `chess::` inside parallel regions.
 
 ## Iterative tuning workflow
 

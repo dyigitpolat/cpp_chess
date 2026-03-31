@@ -66,6 +66,7 @@ int main(int argc, char** argv) {
   bool random_seed_board = false;
   chess::GaConfig cfg;
   cfg.report_each_generation = false;
+  cfg.report_generation_time = false;
   cfg.local_search_enabled = false;
   bool minus_knight = false;
   bool minus_bishop = false;

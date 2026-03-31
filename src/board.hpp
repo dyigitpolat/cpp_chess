@@ -45,11 +45,23 @@ bool in_bounds(int r, int c);
 // Attacks from square `sq` (target squares a piece could move to for sliding/attacks).
 void attacks_from(const Board& b, int sq, std::vector<int>& out);
 
+/// Square attacked by side `by_white`. For `by_white == false`, only the black king is considered
+/// (this project’s positions use Black = lone king). For a full chess set, extend this.
 bool is_attacked(const Board& b, int target_sq, bool by_white);
 
 int find_king_sq(const Board& b, bool white_king);
 
 bool in_check(const Board& b, bool white_to_move_side);
+
+// Bitmask of squares (0..63) with a white piece — ~16 bits set in the puzzle composition.
+uint64_t white_piece_occ_mask(const Board& b);
+
+// Mate-in-one / lone-black-king fast paths: avoid find_king_sq when king squares are known.
+// Black must have exactly one king; White must not capture it on the prior ply.
+bool black_king_in_check(const Board& b, int black_king_sq);
+// Reuse `white_mask` from white_piece_occ_mask(nb) when calling repeatedly on the same `b`.
+bool black_king_in_check(const Board& b, int black_king_sq, uint64_t white_mask);
+bool white_king_in_check_vs_lone_black(const Board& b, int white_king_sq, int black_king_sq);
 
 void pseudo_moves(const Board& b, bool white_side, std::vector<Move>& out);
 
@@ -59,6 +71,8 @@ bool has_any_legal_move(const Board& b, bool white_side);
 
 // Black has only a king — faster than generic has_any_legal_move.
 bool black_king_has_legal_move(const Board& b);
+// When the black king square is already known (e.g. unchanged after a White move), avoids a board scan.
+bool black_king_has_legal_move(const Board& b, int black_king_sq);
 
 // True if neither king is in check (legal starting position for GA).
 bool position_legal_quiet(const Board& b);
@@ -84,5 +98,7 @@ void set_baseline(Board& b);
 void set_baseline(Board& b, const MaterialSpec& m);
 
 void clear_board(Board& b);
+
+// Further speedup (large refactor): bitboards and precomputed sliding attacks.
 
 }  // namespace chess

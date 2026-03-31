@@ -19,7 +19,8 @@ void print_usage() {
                "Options:\n"
                "  --baseline-only     Print mate-in-one count for the baseline board and exit\n"
                "  --random-seed-board Use a random legal starting position instead of the image baseline\n"
-               "  --quiet             Do not print per-generation best (stderr)\n"
+               "  --quiet             Do not print per-generation best (stderr); timing line still prints\n"
+               "  --no-generation-time  Do not print per-generation wall time (stderr)\n"
                "  --population N      GA population size (default: 128)\n"
                "  --generations N     GA generations (default: 500)\n"
                "  --seed N            RNG seed (default: random)\n"
@@ -101,6 +102,10 @@ int main(int argc, char** argv) {
     }
     if (!std::strcmp(argv[i], "--quiet")) {
       cfg.report_each_generation = false;
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--no-generation-time")) {
+      cfg.report_generation_time = false;
       continue;
     }
     if (!std::strcmp(argv[i], "--population")) {
