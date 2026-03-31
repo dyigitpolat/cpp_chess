@@ -11,7 +11,8 @@ int count_mate_in_one(const Board& b, std::vector<MateMove>* list_out) {
   if (in_check(b, true)) return 0;
   if (in_check(b, false)) return 0;
 
-  std::vector<Move> moves;
+  thread_local std::vector<Move> moves;
+  moves.clear();
   moves.reserve(512);
   pseudo_moves(b, true, moves);
 

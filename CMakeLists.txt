@@ -19,6 +19,7 @@ add_executable(bench_ga
   src/board.cpp
   src/mate.cpp
   src/ga.cpp
+  src/html_export.cpp
   src/local_search.cpp
 )
 

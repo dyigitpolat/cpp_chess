@@ -12,7 +12,7 @@ namespace chess {
 enum class CrossoverMode {
   /// Legacy: per-type sorted squares (weak building blocks).
   Sorted,
-  /// Fixed semantic slots (9 queens in row-major order, then rooks, …) + collision repair.
+  /// Fixed semantic slots (queens in row-major order, then rooks, …) + collision repair.
   VectorRepair,
 };
 
@@ -62,9 +62,21 @@ struct GaConfig {
   int trace_every = 1;
   /// If true, fill GaResult trace vectors (small memory cost).
   bool collect_trace = false;
+
+  /// Piece counts for White (default 9Q 2R 2N 2B + K vs k). Use white_queens 8 or white_knights/white_bishops 1 for one fewer.
+  MaterialSpec material{};
+
+  /// When the global best strictly improves to >= `record_snapshot_min_fitness`, write HTML next to
+  /// `record_snapshot_output_path` as `{dir}{prefix}_{score}_{stem}.html` or `{dir}{score}_{stem}.html` if prefix empty.
+  std::string record_snapshot_output_path;
+  std::string record_snapshot_prefix;
+  std::string record_snapshot_stem;
+  int record_snapshot_min_fitness = 100;
+  /// Title passed to `write_results_html` (e.g. from `--title`).
+  std::string html_export_title = "Best position";
 };
 
-bool try_random_legal_board(std::mt19937& rng, Board& out);
+bool try_random_legal_board(std::mt19937& rng, const MaterialSpec& mat, Board& out);
 
 struct GaResult {
   Board best_board{};

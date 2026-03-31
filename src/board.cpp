@@ -202,7 +202,24 @@ bool position_legal_quiet(const Board& b) {
   return true;
 }
 
-bool valid_material(const Board& b) {
+int material_piece_count(const MaterialSpec& m) {
+  return m.white_queens + 2 + m.white_knights + m.white_bishops + 2;
+}
+
+std::string composition_string(const MaterialSpec& m) {
+  std::string s = std::to_string(m.white_queens);
+  s += "Q 2R ";
+  s += std::to_string(m.white_knights);
+  s += "N ";
+  s += std::to_string(m.white_bishops);
+  s += "B + K vs k";
+  return s;
+}
+
+bool valid_material(const Board& b, const MaterialSpec& m) {
+  if (m.white_queens < 1 || m.white_queens > 9 || m.white_knights < 1 || m.white_knights > 2 ||
+      m.white_bishops < 1 || m.white_bishops > 2)
+    return false;
   int nq = 0, nr = 0, nb = 0, nn = 0, nwk = 0, nbk = 0;
   for (uint8_t p : b) {
     switch (p) {
@@ -230,7 +247,8 @@ bool valid_material(const Board& b) {
         return false;
     }
   }
-  return nq == 9 && nr == 2 && nb == 2 && nn == 2 && nwk == 1 && nbk == 1;
+  return nq == m.white_queens && nr == 2 && nb == m.white_bishops && nn == m.white_knights && nwk == 1 &&
+         nbk == 1;
 }
 
 void clear_board(Board& b) { b.fill(EMPTY); }
@@ -258,6 +276,35 @@ void set_baseline(Board& b) {
   place("g4", W_B);
   place("g1", W_B);
   place("d4", B_K);
+}
+
+void set_baseline(Board& b, const MaterialSpec& m) {
+  set_baseline(b);
+  if (m.white_queens < 9) {
+    static const char* queen_sq[] = {"e1", "c1", "b3", "a3", "g5", "a5", "c6", "e7", "b8"};
+    for (int i = static_cast<int>(m.white_queens); i < 9; ++i) {
+      int s = sq_from_algebraic(queen_sq[static_cast<size_t>(i)]);
+      if (s >= 0 && b[static_cast<size_t>(s)] == W_Q) b[static_cast<size_t>(s)] = EMPTY;
+    }
+  }
+  if (m.white_knights < 2) {
+    int s = sq_from_algebraic("g3");
+    if (s >= 0 && b[static_cast<size_t>(s)] == W_N)
+      b[static_cast<size_t>(s)] = EMPTY;
+    else {
+      s = sq_from_algebraic("h6");
+      if (s >= 0 && b[static_cast<size_t>(s)] == W_N) b[static_cast<size_t>(s)] = EMPTY;
+    }
+  }
+  if (m.white_bishops < 2) {
+    int s = sq_from_algebraic("g1");
+    if (s >= 0 && b[static_cast<size_t>(s)] == W_B)
+      b[static_cast<size_t>(s)] = EMPTY;
+    else {
+      s = sq_from_algebraic("g4");
+      if (s >= 0 && b[static_cast<size_t>(s)] == W_B) b[static_cast<size_t>(s)] = EMPTY;
+    }
+  }
 }
 
 }  // namespace chess

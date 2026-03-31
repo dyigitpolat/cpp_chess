@@ -54,7 +54,8 @@ const char* unicode_piece(uint8_t p) {
 }  // namespace
 
 void write_results_html(const std::string& path, const Board& board, int mate_count,
-                        const std::vector<MateMove>& mates, const std::string& title) {
+                        const std::vector<MateMove>& mates, const std::string& title,
+                        const MaterialSpec& material) {
   std::ostringstream body;
   body << "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"/><title>" << html_escape(title)
        << "</title>\n";
@@ -123,7 +124,8 @@ void write_results_html(const std::string& path, const Board& board, int mate_co
     body << "</div>\n";
   }
   body << "</div></div>\n";
-  body << "<p style=\"margin-top:24px;font-size:10px;color:#3a3a38;max-width:460px;text-align:center\">Exported by cpp_chess GA. Composition: 9Q 2R 2N 2B + K vs k.</p>\n";
+  body << "<p style=\"margin-top:24px;font-size:10px;color:#3a3a38;max-width:460px;text-align:center\">Exported by cpp_chess GA. Composition: "
+       << html_escape(composition_string(material)) << ".</p>\n";
   body << "<script type=\"application/json\" id=\"board-data\">[";
   for (int i = 0; i < SQ_COUNT; ++i) {
     if (i) body << ",";

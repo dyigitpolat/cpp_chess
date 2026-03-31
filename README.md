@@ -19,7 +19,7 @@ Binaries: `build/chess_ga` (search + HTML), `build/bench_ga` (CSV grid benchmark
 
 **Scripts:** `./build.sh` configures and builds. `./run.sh` runs `chess_ga`. `./build_and_run.sh` builds then runs `chess_ga`. `./scripts/bench_ga.sh` runs `bench_ga` (after `./build.sh`).
 
-OpenMP is used automatically when CMake finds it (parallel fitness evaluation). On Linux clusters, if CMake does not find OpenMP, set **`OPENMP_ROOT`** or **`LIBOMP_ROOT`** to your module/install prefix before `./build.sh`. On some Apple toolchains OpenMP may be unavailable without Homebrew **libomp**; the program still builds and runs single-threaded.
+OpenMP is used automatically when CMake finds it. The GA then parallelizes **fitness evaluation** (`count_mate_in_one` over the full population), **population initialization**, **diversity and stagnation immigrants** (random legal boards), **offspring generation** (cross-pool inject and main fill, each slot with its own deterministic RNG), and **local search** (neighbor mate counts in fixed-size chunks). Threading changes RNG consumption order versus a hypothetical single-threaded run: use `--seed` for repeatable *parallel* runs, but do not expect bitwise-identical results to pre-parallel binaries. On Linux clusters, if CMake does not find OpenMP, set **`OPENMP_ROOT`** or **`LIBOMP_ROOT`** to your module/install prefix before `./build.sh`. On some Apple toolchains OpenMP may be unavailable without Homebrew **libomp**; the program still builds and runs single-threaded.
 
 ## Run
 

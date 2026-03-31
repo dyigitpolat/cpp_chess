@@ -9,6 +9,7 @@
 namespace chess {
 
 void write_results_html(const std::string& path, const Board& board, int mate_count,
-                        const std::vector<MateMove>& mates, const std::string& title);
+                        const std::vector<MateMove>& mates, const std::string& title,
+                        const MaterialSpec& material = MaterialSpec{});
 
 }  // namespace chess

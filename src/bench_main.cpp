@@ -49,6 +49,9 @@ void print_usage() {
          "  --pools N            Subpopulations (default 1); 2+ enables cross-pool elite crossover\n"
          "  --pool-cross-elite N Top elites per pool in cross-pool gene pool (default 5)\n"
          "  --cross-pool-inject-fraction F  Min fraction of pool from cross-pool offspring (default 0.1)\n"
+         "  --minus-knight      One fewer white knight (after any --match-chess-ga / --preset)\n"
+         "  --minus-bishop      One fewer white bishop (after any --match-chess-ga / --preset)\n"
+         "  --minus-queen       One fewer white queen (8Q instead of 9)\n"
          "  CSV columns:\n"
          "    seed,population,generations,best_fitness,seconds,plateau_generation,\n"
          "    local_search,initial_fitness\n";
@@ -64,6 +67,9 @@ int main(int argc, char** argv) {
   chess::GaConfig cfg;
   cfg.report_each_generation = false;
   cfg.local_search_enabled = false;
+  bool minus_knight = false;
+  bool minus_bishop = false;
+  bool minus_queen = false;
 
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "-h") || !std::strcmp(argv[i], "--help")) {
@@ -134,10 +140,33 @@ int main(int argc, char** argv) {
       cfg.cross_pool_inject_fraction = std::strtod(argv[++i], nullptr);
       continue;
     }
+    if (!std::strcmp(argv[i], "--minus-knight")) {
+      minus_knight = true;
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--minus-bishop")) {
+      minus_bishop = true;
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--minus-queen")) {
+      minus_queen = true;
+      continue;
+    }
     std::cerr << "Unknown or unsupported argument: " << argv[i] << "\n";
     print_usage();
     return 1;
   }
+
+  {
+    int n_minus = (minus_knight ? 1 : 0) + (minus_bishop ? 1 : 0) + (minus_queen ? 1 : 0);
+    if (n_minus > 1) {
+      std::cerr << "bench_ga: use at most one of --minus-knight, --minus-bishop, and --minus-queen\n";
+      return 1;
+    }
+  }
+  if (minus_knight) cfg.material.white_knights = 1;
+  if (minus_bishop) cfg.material.white_bishops = 1;
+  if (minus_queen) cfg.material.white_queens = 8;
 
   std::cout << "seed,population,generations,best_fitness,seconds,plateau_generation,local_search,"
                "initial_fitness\n";
@@ -149,11 +178,11 @@ int main(int argc, char** argv) {
     if (random_seed_board) {
       std::mt19937 rng(sd);
       int guard = 0;
-      while (!chess::try_random_legal_board(rng, seed_board) && ++guard < 500000) {
+      while (!chess::try_random_legal_board(rng, cfg.material, seed_board) && ++guard < 500000) {
       }
       if (guard >= 500000) continue;
     } else {
-      chess::set_baseline(seed_board);
+      chess::set_baseline(seed_board, cfg.material);
     }
 
     for (int pop : pops) {

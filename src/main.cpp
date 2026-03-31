@@ -47,6 +47,12 @@ void print_usage() {
                "  --collect-trace     Store per-gen vectors in GaResult (for API use)\n"
                "  --output PATH       Write results HTML (default: results.html)\n"
                "  --title TEXT        HTML title (default: Best position)\n"
+               "  --record-prefix STR Optional prefix when saving record HTML (see below)\n"
+               "  On each new global best >= 100, also write {dir}{prefix}_{score}_{stem}.html\n"
+               "  ({dir} from --output; {stem} from --output basename; omit prefix_ if --record-prefix omitted)\n"
+               "  --minus-knight      Use one fewer white knight (1N instead of 2)\n"
+               "  --minus-bishop      Use one fewer white bishop (1B instead of 2)\n"
+               "  --minus-queen       Use one fewer white queen (8Q instead of 9)\n"
                "  -h, --help          This help\n");
 }
 
@@ -60,6 +66,14 @@ double arg_double(int argc, char** argv, int i, double def) {
   return std::strtod(argv[i + 1], nullptr);
 }
 
+std::string stem_from_output_path(const std::string& path) {
+  const size_t slash = path.find_last_of("/\\");
+  std::string base = slash == std::string::npos ? path : path.substr(slash + 1);
+  const size_t dot = base.rfind('.');
+  if (dot != std::string::npos && dot > 0) return base.substr(0, dot);
+  return base;
+}
+
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -68,6 +82,9 @@ int main(int argc, char** argv) {
   chess::GaConfig cfg;
   std::string output = "results.html";
   std::string title = "Best position";
+  bool minus_knight = false;
+  bool minus_bishop = false;
+  bool minus_queen = false;
 
   for (int i = 1; i < argc; ++i) {
     if (!std::strcmp(argv[i], "-h") || !std::strcmp(argv[i], "--help")) {
@@ -220,16 +237,48 @@ int main(int argc, char** argv) {
       if (i + 1 < argc) title = argv[++i];
       continue;
     }
+    if (!std::strcmp(argv[i], "--record-prefix")) {
+      if (i + 1 < argc) cfg.record_snapshot_prefix = argv[++i];
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--minus-knight")) {
+      minus_knight = true;
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--minus-bishop")) {
+      minus_bishop = true;
+      continue;
+    }
+    if (!std::strcmp(argv[i], "--minus-queen")) {
+      minus_queen = true;
+      continue;
+    }
     std::fprintf(stderr, "Unknown argument: %s\n", argv[i]);
     print_usage();
     return 1;
   }
 
+  {
+    int n_minus = (minus_knight ? 1 : 0) + (minus_bishop ? 1 : 0) + (minus_queen ? 1 : 0);
+    if (n_minus > 1) {
+      std::fprintf(stderr,
+                   "chess_ga: use at most one of --minus-knight, --minus-bishop, and --minus-queen\n");
+      return 1;
+    }
+  }
+  if (minus_knight) cfg.material.white_knights = 1;
+  if (minus_bishop) cfg.material.white_bishops = 1;
+    if (minus_queen) cfg.material.white_queens = 8;
+
+  cfg.record_snapshot_output_path = output;
+  cfg.record_snapshot_stem = stem_from_output_path(output);
+  cfg.html_export_title = title;
+
   chess::Board seed_board{};
   if (random_seed_board) {
     std::mt19937 rng(cfg.seed ? cfg.seed : std::random_device{}());
     int guard = 0;
-    while (!chess::try_random_legal_board(rng, seed_board) && ++guard < 500000) {
+    while (!chess::try_random_legal_board(rng, cfg.material, seed_board) && ++guard < 500000) {
     }
     if (guard >= 500000) {
       std::fprintf(stderr, "chess_ga: could not sample a random legal board (try another --seed)\n");
@@ -238,13 +287,17 @@ int main(int argc, char** argv) {
     int start_fit = chess::count_mate_in_one(seed_board);
     std::fprintf(stderr, "Using random legal seed board (mate-in-ones=%d)\n", start_fit);
   } else {
-    chess::set_baseline(seed_board);
+    chess::set_baseline(seed_board, cfg.material);
   }
 
   if (baseline_only) {
     int n = chess::count_mate_in_one(seed_board);
-    std::printf("Mate-in-one count: %d%s\n", n, random_seed_board ? "" : " (expected 105 for image baseline)");
-    return (!random_seed_board && n != 105) ? 2 : 0;
+    const bool default_material = cfg.material.white_queens == 9 && cfg.material.white_knights == 2 &&
+                                  cfg.material.white_bishops == 2;
+    std::printf("Mate-in-one count: %d%s\n", n,
+                random_seed_board || !default_material ? "" : " (expected 105 for image baseline)");
+    if (random_seed_board || !default_material) return 0;
+    return n != 105 ? 2 : 0;
   }
 
   chess::GaResult res = chess::run_genetic_algorithm(cfg, seed_board);
@@ -252,7 +305,7 @@ int main(int argc, char** argv) {
   std::printf("Best mate-in-one count: %d (initial %d, plateau_gen %d)\n", res.best_fitness,
                res.initial_fitness, res.plateau_generation);
 
-  chess::write_results_html(output, res.best_board, res.best_fitness, res.best_mates, title);
+  chess::write_results_html(output, res.best_board, res.best_fitness, res.best_mates, title, cfg.material);
   std::printf("Wrote %s\n", output.c_str());
 
   return 0;

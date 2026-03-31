@@ -63,12 +63,26 @@ bool black_king_has_legal_move(const Board& b);
 // True if neither king is in check (legal starting position for GA).
 bool position_legal_quiet(const Board& b);
 
+/// White attacking force: 9Q (default), 2R, knights/bishops 1–2 each (default 2), 1K vs 1k.
+struct MaterialSpec {
+  int white_queens = 9;
+  int white_knights = 2;
+  int white_bishops = 2;
+};
+
+/// Total pieces on board for this composition (Q + 2R + N + B + both kings).
+int material_piece_count(const MaterialSpec& m);
+
+std::string composition_string(const MaterialSpec& m);
+
+bool valid_material(const Board& b, const MaterialSpec& m = MaterialSpec{});
+
 // Fixed composition: 9Q 2R 2N 2B 1K vs 1k
-bool valid_material(const Board& b);
+void set_baseline(Board& b);
+
+/// Image baseline, then remove queens/knights/bishops (e1, then c1, …; g3/h6; g1/g4).
+void set_baseline(Board& b, const MaterialSpec& m);
 
 void clear_board(Board& b);
-
-// Baseline from plan (image)
-void set_baseline(Board& b);
 
 }  // namespace chess
